@@ -20,6 +20,7 @@ search for new regimes.
 - Orbit with mouse drag, zoom with scroll wheel
 - Motion-blur fade control, hue-cycling trail colors
 - Export the current canvas as a PNG
+- Share configurations via URL hash ("Copy link" — preset + parameter values are encoded in the URL and restored on load)
 - Spacebar pauses/resumes
 
 ## Run

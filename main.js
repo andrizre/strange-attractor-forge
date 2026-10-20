@@ -14,6 +14,7 @@ const els = {
   randomize: document.getElementById("randomize"),
   reseed: document.getElementById("reseed"),
   export: document.getElementById("export"),
+  copy: document.getElementById("copy"),
   info: document.getElementById("info"),
 };
 
@@ -27,6 +28,29 @@ let autoRotate = true;
 let hue = 0;
 let dt = 0.005;
 let running = true;
+
+// ---- share links (URL hash: #<presetName>:p1,p2,...) ----
+function encodeState() {
+  return `#${preset.name}:${paramValues.map((v) => v.toFixed(4)).join(",")}`;
+}
+function decodeState(hash) {
+  try {
+    const m = /^#([A-Za-z-]+):([\d.,eE+-]+)$/.exec(hash || "");
+    if (!m) return null;
+    const idx = PRESETS.findIndex((p) => p.name.toLowerCase() === m[1].toLowerCase());
+    if (idx < 0) return null;
+    const values = m[2].split(",").map(Number);
+    const def = PRESETS[idx].params;
+    if (values.length !== def.length || values.some((v) => !isFinite(v))) return null;
+    // clamp to slider ranges
+    const clamped = values.map((v, i) =>
+      Math.max(def[i].min, Math.min(def[i].max, v))
+    );
+    return { presetIndex: idx, values: clamped };
+  } catch {
+    return null;
+  }
+}
 
 // ---- helpers ----
 function resize() {
@@ -168,10 +192,18 @@ function buildParamSliders() {
   });
 }
 
-function loadPreset(i) {
+function loadPreset(i, presetValues) {
   preset = PRESETS[i];
   els.scale.value = preset.scale;
   buildParamSliders();
+  if (presetValues) {
+    presetValues.forEach((v, j) => {
+      paramValues[j] = v;
+      const row = els.params.children[j];
+      row.querySelector("input").value = v;
+      row.querySelector(".pval").textContent = v.toFixed(3);
+    });
+  }
   dt = preset.name === "Lorenz" ? 0.004 : 0.008;
   reseed();
   els.info.textContent = `${preset.name}: rk2 integration, drag to orbit, scroll to zoom.`;
@@ -200,6 +232,18 @@ els.export.addEventListener("click", () => {
   a.click();
 });
 
+els.copy.addEventListener("click", async () => {
+  const url = `${location.origin}${location.pathname}${encodeState()}`;
+  history.replaceState(null, "", encodeState());
+  try {
+    await navigator.clipboard.writeText(url);
+    els.copy.textContent = "Copied!";
+  } catch {
+    els.copy.textContent = "See URL bar";
+  }
+  setTimeout(() => { els.copy.textContent = "Copy link"; }, 1500);
+});
+
 // pointer: drag to orbit
 let dragging = false, lastX = 0, lastY = 0;
 canvas.addEventListener("pointerdown", (e) => {
@@ -226,6 +270,10 @@ window.addEventListener("resize", resize);
 // ---- boot ----
 resize();
 buildPresetSelect();
-els.preset.value = "0";
-loadPreset(0);
+const shared = decodeState(location.hash);
+els.preset.value = String(shared ? shared.presetIndex : 0);
+loadPreset(shared ? shared.presetIndex : 0, shared ? shared.values : null);
+if (shared) {
+  els.info.textContent = `Loaded shared "${preset.name}" configuration.`;
+}
 requestAnimationFrame(frame);
